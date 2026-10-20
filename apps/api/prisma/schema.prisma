@@ -20,15 +20,16 @@ enum Role {
 }
 
 model User {
-  id           String       @id @default(uuid())
-  email        String       @unique
-  passwordHash String
-  fullName     String
-  role         Role         @default(STUDENT)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  courses      Course[]     @relation("InstructorCourses")
-  enrollments  Enrollment[]
+  id               String       @id @default(uuid())
+  email            String       @unique
+  passwordHash     String
+  refreshTokenHash String?
+  fullName         String
+  role             Role         @default(STUDENT)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  courses          Course[]     @relation("InstructorCourses")
+  enrollments      Enrollment[]
 }
 
 model Course {
