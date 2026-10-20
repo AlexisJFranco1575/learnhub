@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: learnhub-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: learnhub
+      POSTGRES_PASSWORD: learnhub
+      POSTGRES_DB: learnhub
+    ports:
+      - "5432:5432"
+    volumes:
+      - learnhub-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U learnhub -d learnhub"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  learnhub-db-data:
