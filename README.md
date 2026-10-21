@@ -4,6 +4,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
 ![NestJS](https://img.shields.io/badge/NestJS-E0234E?logo=nestjs&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 A learning-platform backend with secure authentication, role-based access control (RBAC), courses and enrollments. It is a portfolio rebuild of the kind of platform I delivered end to end as the sole developer for educational clients.
@@ -16,6 +17,7 @@ A learning-platform backend with secure authentication, role-based access contro
 - **Enrollments:** students enroll and leave; instructors see the roster of their own courses.
 - **Role management:** only admins can change roles, and never their own.
 - **API documentation:** interactive Swagger UI at `/docs`.
+- **Containerized:** multi-stage Docker image (non-root, with healthcheck) and a one-command Compose stack.
 - **Quality gates:** unit tests, end-to-end tests against a real PostgreSQL, and CI on every pull request.
 
 ## Tech stack
@@ -27,7 +29,7 @@ A learning-platform backend with secure authentication, role-based access contro
 | Security | Argon2, JWT (access + refresh), rate limiting, DTO validation |
 | Documentation | OpenAPI / Swagger |
 | Testing | Jest, Supertest |
-| Tooling | pnpm, Docker Compose, GitHub Actions |
+| Tooling | pnpm, Docker, Docker Compose, GitHub Actions |
 
 ## Architecture
 
@@ -131,20 +133,41 @@ Interactive documentation is available at `http://localhost:3000/docs`.
 
 ## Getting started
 
-**Prerequisites:** Node.js 22, pnpm, Docker Desktop and Git.
+### Option A: everything in Docker (one command)
+
+**Prerequisites:** Docker Desktop and Git.
 
 ```bash
 git clone https://github.com/AlexisJFranco1575/learnhub.git
 cd learnhub
 
-# 1. Start PostgreSQL
+cp .env.example .env
+# Edit .env: set two DIFFERENT random secrets and an admin password.
+# Generate each secret with:
+#   node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+
+docker compose --profile full up --build
+```
+
+The API runs at `http://localhost:3000/api` and the docs at `http://localhost:3000/docs`. On startup the container applies the database migrations and creates the admin user from your `.env`. Demo data is never created in this mode, because the image runs with `NODE_ENV=production`.
+
+Stop it with `docker compose --profile full down` (add `-v` to also delete the database volume).
+
+### Option B: local development
+
+**Prerequisites:** Node.js 24 (see `.nvmrc`), pnpm, Docker Desktop and Git.
+
+```bash
+git clone https://github.com/AlexisJFranco1575/learnhub.git
+cd learnhub
+
+# 1. Start PostgreSQL only
 docker compose up -d
 
 # 2. Configure the API
 cd apps/api
 cp .env.example .env
-# Edit .env and set two DIFFERENT random secrets. Generate each one with:
-#   node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+# Edit .env and set two DIFFERENT random secrets (command above).
 
 # 3. Install, migrate, seed and run
 pnpm install
@@ -152,8 +175,6 @@ pnpm prisma migrate deploy
 pnpm db:seed
 pnpm start:dev
 ```
-
-The API runs at `http://localhost:3000/api` and the docs at `http://localhost:3000/docs`.
 
 The seed creates an admin (`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` from your `.env`) and, outside production, a demo instructor (`instructor@learnhub.dev` / `Instructor12345!`) with three demo courses. These demo credentials are for local development only.
 
@@ -169,11 +190,19 @@ Run these from `apps/api`.
 | `pnpm test:e2e` | End-to-end tests against the real PostgreSQL |
 | `pnpm db:seed` | Create the admin user and demo data (idempotent) |
 
+## Docker image
+
+The image is built in three stages (see `apps/api/Dockerfile`):
+
+1. **base:** Node 24 (slim), pnpm and OpenSSL.
+2. **build:** all dependencies, Prisma client generation and TypeScript compilation.
+3. **runtime:** production dependencies and the compiled output only, running as the non-root `node` user, with a healthcheck on `/api/health`.
+
 ## Testing strategy
 
 - **Unit tests** cover services and guards with a mocked database: business rules, ownership checks and error mapping.
 - **End-to-end tests** boot the whole application against PostgreSQL and exercise the real HTTP surface: authentication, token rotation and reuse detection, role checks, course visibility, pagination and enrollment rules. Each run creates uniquely named data and removes only what it created.
-- **CI** runs build, unit tests, migrations and e2e tests on every pull request, with PostgreSQL as a service container.
+- **CI** runs build, unit tests, migrations and e2e tests on every pull request, with PostgreSQL as a service container. A second job builds the production Docker image and checks its contents and user.
 
 ## Design decisions
 
@@ -186,6 +215,7 @@ Run these from `apps/api`.
 - **Hidden resources answer 404, not 403**, so their existence is not revealed.
 - **Fail fast on configuration:** the app refuses to start when a required secret is missing or too short.
 - **Registration always creates a `STUDENT`;** promotions go through an admin.
+- **Multi-stage, non-root container** with no secrets baked into the image: all configuration comes from environment variables.
 
 ## Known limitations
 
@@ -198,7 +228,7 @@ Run these from `apps/api`.
 - [x] Authentication, refresh token rotation and RBAC
 - [x] Courses, enrollments, role management and Swagger docs
 - [x] Unit tests, e2e tests and CI
-- [ ] Production Docker image and full-stack Compose file
+- [x] Production Docker image and full-stack Compose file
 - [ ] Public deployment
 - [ ] Angular frontend
 - [ ] Multi-session refresh tokens
