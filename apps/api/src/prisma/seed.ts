@@ -3,6 +3,37 @@ import * as argon2 from 'argon2';
 
 const prisma = new PrismaClient();
 
+const isProduction = process.env.NODE_ENV === 'production';
+const MIN_PRODUCTION_PASSWORD_LENGTH = 10;
+
+// Public demo credentials. They only exist when demo data is enabled.
+const DEMO_INSTRUCTOR = {
+  email: 'instructor@learnhub.dev',
+  fullName: 'Demo Instructor',
+  password: 'Instructor12345!',
+};
+const DEMO_STUDENT = {
+  email: 'student@learnhub.dev',
+  fullName: 'Demo Student',
+  password: 'Student12345!',
+};
+
+function resolveAdminPassword(): string {
+  const password = process.env.SEED_ADMIN_PASSWORD;
+
+  if (isProduction) {
+    // Never fall back to a known default password in production.
+    if (!password || password.length < MIN_PRODUCTION_PASSWORD_LENGTH) {
+      throw new Error(
+        `SEED_ADMIN_PASSWORD must be set (at least ${MIN_PRODUCTION_PASSWORD_LENGTH} characters) in production`,
+      );
+    }
+    return password;
+  }
+
+  return password ?? 'change-me-please';
+}
+
 async function upsertUser(params: {
   email: string;
   fullName: string;
@@ -27,23 +58,26 @@ async function main() {
     email: process.env.SEED_ADMIN_EMAIL ?? 'admin@learnhub.dev',
     fullName: 'LearnHub Admin',
     role: Role.ADMIN,
-    password: process.env.SEED_ADMIN_PASSWORD ?? 'change-me-please',
+    password: resolveAdminPassword(),
   });
   console.log(`Seed OK: admin user ${admin.email}`);
 
-  // Demo data must never be created in production.
-  if (process.env.NODE_ENV === 'production') {
-    console.log('Production environment: demo data skipped');
+  // Demo data is on by default outside production; in production it must be
+  // requested explicitly (public demo deployments).
+  const seedDemo = !isProduction || process.env.SEED_DEMO_DATA === 'true';
+  if (!seedDemo) {
+    console.log('Demo data skipped (set SEED_DEMO_DATA=true to create it)');
     return;
   }
 
   const instructor = await upsertUser({
-    email: 'instructor@learnhub.dev',
-    fullName: 'Demo Instructor',
+    ...DEMO_INSTRUCTOR,
     role: Role.INSTRUCTOR,
-    password: 'Instructor12345!',
   });
   console.log(`Seed OK: demo instructor ${instructor.email}`);
+
+  const student = await upsertUser({ ...DEMO_STUDENT, role: Role.STUDENT });
+  console.log(`Seed OK: demo student ${student.email}`);
 
   const courses = [
     {
@@ -66,10 +100,15 @@ async function main() {
     },
   ];
 
+  // Demo courses are reset on every start, so a public demo heals itself.
   for (const course of courses) {
     await prisma.course.upsert({
       where: { id: course.id },
-      update: {},
+      update: {
+        title: course.title,
+        description: course.description,
+        published: course.published,
+      },
       create: { ...course, instructorId: instructor.id },
     });
   }

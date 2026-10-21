@@ -42,12 +42,9 @@ services:
       JWT_REFRESH_TTL_SECONDS: "604800"
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@learnhub.dev}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:4200}
-    # Apply migrations, make sure the admin exists, then start the API.
-    command:
-      - sh
-      - -c
-      - ./node_modules/.bin/prisma migrate deploy && node dist/prisma/seed.js && node dist/main.js
+    # The image entrypoint applies migrations, seeds the admin and starts the API.
 
 volumes:
   learnhub-db-data:

@@ -44,10 +44,16 @@ RUN DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholde
 
 COPY --from=build /app/dist ./dist
 
+# Startup script: migrate, make sure the admin exists, then start the API.
+# Line endings are normalized because Windows checkouts may use CRLF.
+COPY docker-entrypoint.sh ./
+RUN sed -i 's/\r$//' docker-entrypoint.sh && chmod +x docker-entrypoint.sh
+
 USER node
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-  CMD node -e "fetch('http://localhost:' + (process.env.PORT || 3000) + '/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+# Liveness only: it must not wake a serverless database on every probe.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD node -e "fetch('http://localhost:' + (process.env.PORT || 3000) + '/api/health/live').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
-CMD ["node", "dist/main.js"]
+CMD ["./docker-entrypoint.sh"]
