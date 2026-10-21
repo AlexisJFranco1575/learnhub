@@ -47,10 +47,12 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@v4
 
+      # Jest needs require(esm) support to load the ESM-only NestJS packages,
+      # which Node provides natively from 24.9 onwards.
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Install pnpm
         run: npm install -g pnpm
