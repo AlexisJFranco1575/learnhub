@@ -2,7 +2,7 @@ allowBuilds:
   '@parcel/watcher': true
   '@prisma/client': false
   '@prisma/engines': false
-  '@scarf/scarf': set this to true or false
+  '@scarf/scarf': false
   argon2: true
   esbuild: true
   prisma: false
