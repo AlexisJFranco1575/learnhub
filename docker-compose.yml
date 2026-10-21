@@ -17,5 +17,37 @@ services:
       timeout: 5s
       retries: 5
 
+  # Start everything with: docker compose --profile full up --build
+  # Without the profile, only the database starts (local development).
+  api:
+    profiles: ["full"]
+    build:
+      context: ./apps/api
+    container_name: learnhub-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DATABASE_URL: postgresql://learnhub:learnhub@db:5432/learnhub?schema=public
+      # Empty defaults on purpose: the app refuses to start without real values
+      # and says exactly which variable is missing.
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-}
+      JWT_ACCESS_TTL_SECONDS: "900"
+      JWT_REFRESH_TTL_SECONDS: "604800"
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@learnhub.dev}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:4200}
+    # Apply migrations, make sure the admin exists, then start the API.
+    command:
+      - sh
+      - -c
+      - ./node_modules/.bin/prisma migrate deploy && node dist/prisma/seed.js && node dist/main.js
+
 volumes:
   learnhub-db-data:
